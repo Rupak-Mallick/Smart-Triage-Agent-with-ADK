@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Triage Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .scroll-y {
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body class="text-gray-800 font-sans">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm py-4 shrink-0 z-10">
+        <div class="container mx-auto text-center">
+            <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Smart Triage Dashboard</h1>
+        </div>
+    </header>
+
+    <!-- Main Content (Full Height) -->
+    <main class="flex-1 container mx-auto p-4 flex gap-6 h-full overflow-hidden">
+
+        <!-- Left Column: Controls & Output -->
+        <div class="w-1/3 flex flex-col gap-4 h-full">
+
+            <!-- Configuration Card -->
+            <div class="bg-white rounded-xl shadow-md p-5 shrink-0">
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Configuration</h2>
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Gemini API Key</label>
+                    <input type="password" id="apiKey"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                        placeholder="Paste key here...">
+                </div>
+
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 mt-5">Incoming Message</h2>
+
+                <!-- Quick Fill Dropdown -->
+                <div class="mb-2">
+                    <select onchange="document.getElementById('messageInput').value = this.value"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs text-gray-600 bg-gray-50 outline-none hover:border-blue-400 transition-colors">
+                        <option value="">✨ Select an example to quick-fill...</option>
+                        <option value="Hi, I forgot my password for the HR portal.">Reset Password Request</option>
+                        <option value="Urgent! The payment gateway is throwing 500 errors.">Critical Bug Report</option>
+                        <option value="Can we schedule a follow-up meeting for next Tuesday?">Meeting Request</option>
+                        <option value="Where can I find the holiday policy?">Policy Question</option>
+                        <option value="Please generate an invoice for Acme Corp for $1500.">Generate Invoice</option>
+                    </select>
+                </div>
+
+                <!-- Manual Input Area -->
+                <div class="mb-4">
+                    <textarea id="messageInput" rows="4"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm resize-none"
+                        placeholder="Type any message here... e.g., 'I need a new laptop charger'"></textarea>
+                </div>
+
+                <button onclick="processMessage()"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition-colors flex justify-center items-center gap-2">
+                    <span>Process Message</span>
+                    <div id="loader" class="loader hidden"></div>
+                </button>
+            </div>
+
+            <!-- Agent Output Card (Fills remaining height) -->
+            <div id="agentResult" class="bg-white rounded-xl shadow-md p-5 flex-1 overflow-y-auto hidden flex flex-col">
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Agent Analysis</h2>
+
+                <div class="bg-blue-50 rounded-lg p-3 mb-4">
+                    <p class="text-xs text-blue-600 font-bold mb-1">REASONING</p>
+                    <p id="thought" class="text-sm text-gray-700 italic"></p>
+                </div>
+
+                <div class="border-t pt-4 mt-auto">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-gray-500">TOOL USED</span>
+                        <code id="toolUsed"
+                            class="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-pink-600"></code>
+                    </div>
+                    <div class="bg-gray-900 rounded-lg p-3 text-green-400 font-mono text-xs overflow-x-auto">
+                        <span class="text-gray-500">$</span> <span id="toolOutput"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Live Feed (Full Height) -->
+        <div class="w-2/3 bg-white rounded-xl shadow-md flex flex-col h-full overflow-hidden">
+            <div class="p-5 border-b shrink-0 bg-gray-50">
+                <h2 class="text-lg font-bold text-gray-800">Live Ticket Feed</h2>
+            </div>
+
+            <div id="ticketFeed" class="flex-1 overflow-y-auto p-5 space-y-3 scroll-y">
+                {% for ticket in tickets %}
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow bg-white">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-mono text-xs font-bold text-gray-500">{{ ticket.id }}</span>
+                        <span class="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">{{
+                            ticket.status }}</span>
+                    </div>
+                    <p class="text-gray-800 font-medium text-sm">{{ ticket.summary }}</p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="text-xs text-gray-400">Priority:</span>
+                        <span class="text-xs font-semibold text-gray-600">{{ ticket.priority }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-10 text-gray-400">
+                    <p>No tickets processed yet.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        async function processMessage() {
+            const apiKey = document.getElementById('apiKey').value;
+            const message = document.getElementById('messageInput').value;
+            const loader = document.getElementById('loader');
+            const resultCard = document.getElementById('agentResult');
+
+            if (!apiKey) {
+                alert("Please enter your API Key!");
+                return;
+            }
+            if (!message.trim()) {
+                alert("Please enter a message!");
+                return;
+            }
+
+            // UI Updates
+            loader.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, api_key: apiKey })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert("Error: " + data.error);
+                } else {
+                    // Show Result
+                    document.getElementById('thought').innerText = data.result.thought;
+                    document.getElementById('toolUsed').innerText = data.result.tool_used;
+                    document.getElementById('toolOutput').innerText = data.result.tool_output;
+                    resultCard.classList.remove('hidden');
+
+                    // Update Ticket Feed
+                    updateTicketFeed(data.tickets);
+                }
+            } catch (e) {
+                alert("Network Error: " + e);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function updateTicketFeed(tickets) {
+            const feed = document.getElementById('ticketFeed');
+            if (tickets.length === 0) {
+                feed.innerHTML = '<div class="text-center py-10 text-gray-400"><p>No tickets processed yet.</p></div>';
+                return;
+            }
+
+            feed.innerHTML = tickets.map(t => `
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow bg-white">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="font-mono text-xs font-bold text-gray-500">${t.id}</span>
+                        <span class="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">${t.status}</span>
+                    </div>
+                    <p class="text-gray-800 font-medium text-sm">${t.summary}</p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="text-xs text-gray-400">Priority:</span>
+                        <span class="text-xs font-semibold text-gray-600">${t.priority}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+
+</html>
