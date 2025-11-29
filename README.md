@@ -25,7 +25,7 @@ An intelligent enterprise triage system that automatically processes incoming me
 1. Clone the repository:
 ```bash
 git clone <your-repo-url>
-cd "5-day AI Agents Intensive course!"
+cd "Smart-Triage-Agent-with-ADK"
 ```
 
 2. Install dependencies:
